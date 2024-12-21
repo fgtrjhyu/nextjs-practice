@@ -1,6 +1,8 @@
 'use client'
 
 import { useState } from 'react'
+import { Foo } from './fooPage'
+import { Person } from './personPage'
 
 const grid =
 { display: "grid"
@@ -31,7 +33,13 @@ function capitalize(value) {
   }
 }
 
-export function TopLeftPage({ children, style, update, model }) {
+function toTopLeftModel(root) {
+  const dictionary = root.black.hoge.fuga.piyo.dictionary;
+  return { dictionary };
+}
+
+
+function TopLeftPage({ children, style, update, model }) {
   const [ favorite, setFavorite ] = useState("");
   const [ description, setDescription ] = useState("");
 
@@ -114,7 +122,12 @@ export function TopLeftPage({ children, style, update, model }) {
   );
 }
 
-export function TopRightPage({ children, style, update, model }) {
+function toTopRightModel(root) {
+  const people = root.red.foo.bar.baz.qux.people;
+  return { people };
+}
+
+function TopRightPage({ children, style, update, model }) {
 
   const [ name, setName ] = useState("");
 
@@ -162,22 +175,21 @@ export function TopRightPage({ children, style, update, model }) {
         <button disabled={name.length == 0 || person} onClick={addingPersonOnClicked}>add</button>
       </div>
     </div>
-  ); }
+  );
+}
 
-export function BottomLeftPage({ children, style, update, model }) {
+function toBottomLeftModel(root) {
+  const name = root.red.foo.bar.baz.qux.name;
+  const people = root.red.foo.bar.baz.qux.people;
+  const dictionary = root.black.hoge.fuga.piyo.dictionary;
+  return { people, dictionary, name };
+}
+
+function BottomLeftPage({ children, style, update, model }) {
 
   function personOnClicked(person, index) {
     return function() {
       update.setNameToRedFooBarBazQuxName(person);
-    }
-  }
-
-  function showPerson(person) {
-    return function(entry, index) {
-      const style = (entry.value == person) ? { color: "white", backgroundColor: "blue" } : {};
-      return (
-        <div key={entry.key} style={style} onClick={personOnClicked(entry.value, index)}>{ entry.value.name }</div>
-      );
     }
   }
 
@@ -192,22 +204,44 @@ export function BottomLeftPage({ children, style, update, model }) {
   }
 
 
-  function showFavorite(person) {
+  function showPerson(baseStyle, person) {
     return function(entry, index) {
-      const existent = person.favorites.indexOf(entry.value) >= 0;
-      const style = existent ? { color: "white", backgroundColor: "blue" } : {};
+      const existent = entry.value === person;
+      const style = existent ? { ...baseStyle, backgroundColor: "blue", color: "white" }: baseStyle;
       return (
-        <div key={entry.key} style={style} onClick={toggleOnClicked(existent, person, entry, index)}>{entry.value}</div>
+        <div key={entry.key} style={style} onClick={personOnClicked(entry.value, index)}>
+          <span style={{ margin: "8px" }}>{ entry.value.name }</span>
+        </div>
       );
     }
   }
 
-  const header =
-  { backgroundColor: "gray"
+  function showFavorite(baseStyle, person) {
+    return function(entry, index) {
+      const existent = person.favorites.indexOf(entry.value) >= 0;
+      const style = existent ? { ...baseStyle, backgroundColor: "blue", color: "white" }: baseStyle;
+      return (
+        <div key={entry.key} style={style} onClick={toggleOnClicked(existent, person, entry, index)}>
+          <span style={{ margin: "8px" }}>{entry.value}</span>
+        </div>
+      );
+    }
+  }
+
+  const headerStyle =
+  { backgroundColor: "blue"
   , color: "white"
   , fontWeith: "bold"
   , fontSize: "larger"
-  , padding: "8px"
+  , padding: "2px"
+  , borderBottom: "1px dashed white"
+  , borderLeft: "1px solid white"
+  , textAlign: "center"
+  };
+
+  const bodyStyle =
+  { padding: "2px"
+  , borderLeft: "1px solid white"
   };
 
   const entries = model.people.map(toEntry);
@@ -220,12 +254,12 @@ export function BottomLeftPage({ children, style, update, model }) {
         <hr/>
         <div style={ { display: "grid", gridTemplateColumns: "1fr 5fr" } }>
           <div>
-            <div style={header}>Person</div>
-            { entries.map(showPerson(person)) }
+            <div style={headerStyle}>Person</div>
+            { entries.map(showPerson(bodyStyle, person)) }
           </div>
           <div>
-            <div style={header}>Favorites</div>
-            { favorites.map(showFavorite(person)) }
+            <div style={headerStyle}>Favorites</div>
+            { favorites.map(showFavorite(bodyStyle, person)) }
           </div>
         </div>
       </div>
@@ -241,33 +275,128 @@ export function BottomLeftPage({ children, style, update, model }) {
   }
 }
 
-export function BottomRightPage({ children, style, update, model }) {
+function addEntry(obj, key, value) {
   return (
-    <div style={style}>
-      { children }
-    </div>
+    Object.fromEntries
+    ( Object.entries(obj).concat( [ [ key, value ] ] )
+    )
   );
 }
 
-function toTopLeft(root) {
+function toBottomRightModel(root) {
   const dictionary = root.black.hoge.fuga.piyo.dictionary;
-  return { dictionary };
+  const people =
+    root.red.foo.bar.baz.qux.people
+      .reduce
+      ( ( a, person ) => addEntry(a, person.name, person)
+      , {}
+      );
+
+  const model =
+  { dictionary
+  , people
+  };
+  return model;
 }
 
-function toTopRight(root) {
-  const people = root.red.foo.bar.baz.qux.people;
-  return { people };
-}
+function BottomRightPage({ children, style, model, update }) {
 
-function toBottomLeft(root) {
-  const name = root.red.foo.bar.baz.qux.name;
-  const people = root.red.foo.bar.baz.qux.people;
-  const dictionary = root.black.hoge.fuga.piyo.dictionary;
-  return { people, dictionary, name };
-}
+  const displayable = [ model.dictionary, model.people ]
+    .map(e => Object.entries(e).length > 0)
+    .reduce( (a, b) => a && b );
 
-function toBottomRight(root) {
-  return root;
+  if (!displayable) {
+    return (
+      <div style={style}>
+        <div>{ children }</div>
+        <hr/>
+        <h1>Which one is empty: the list of people, the dictionary, or both?</h1>
+      </div>
+    );
+  }
+
+  function defaultKey(object) {
+    const [ key ] = Object.entries(object).filter( (e, index) => index === 0 ).map( ([ k, v ]) => k );
+    return key;
+  }
+
+  function alt([ key, setter], object) {
+    if (object[key]) {
+      return [key, setter]
+    }
+    const altKey = defaultKey(object);
+    setter(altKey);
+    return [ altKey, setter ];
+  }
+
+  const [ thingKey, setThingKey ] = alt(useState(defaultKey(model.dictionary)), model.dictionary);
+  const [ personKey, setPersonKey ] = alt(useState(defaultKey(model.people)), model.people);
+
+  function htmlWord(selected) {
+    return function({ key, value:[ word, description ] }) {
+      const style = word === selected ? { backgroundColor: "blue", color: "white" } : {};
+      function onClick() {
+        setThingKey(word);
+      }
+      return (
+        <div key={key} style={style} onClick={onClick}>
+          {word}
+        </div>
+      );
+    }
+  }
+
+  function htmlPerson(selected) {
+    return function({ key, value:[ name, favorites ] }) {
+      const style = name === selected ? { backgroundColor: "blue", color: "white" } : {};
+      function onClick() {
+        setPersonKey(name);
+      }
+      return (
+        <div key={key} style={style} onClick={onClick}>
+          {name}
+        </div>
+      );
+    }
+  }
+
+  const htmlDictionary = Object
+    .entries(model.dictionary)
+    .map(toEntry)
+    .map(htmlWord(thingKey));
+
+  const htmlPeople = Object
+    .entries(model.people)
+    .map(toEntry)
+    .map(htmlPerson(personKey));
+
+  const leftContents = (
+    <Foo left={htmlDictionary} right={htmlPeople}/>
+  )
+
+  const description = model.dictionary[thingKey];
+  const person = model.people[personKey];
+  const htmlAnswer =
+    (description && person)
+      ? ( <div>
+            { personKey }
+            { person.favorites.indexOf(thingKey) >= 0 ? " likes " : " don't like " }
+            { thingKey }
+            <hr/>
+            { description }
+          </div>
+        )
+      : ( <div>
+          </div>
+        )
+    ;
+
+  return (
+    <div style={style}>
+      <div>{ children }</div>
+      <Foo left={leftContents} right={htmlAnswer}/>
+    </div>
+  );
 }
 
 export function RootPage({ children, model }) {
@@ -353,24 +482,24 @@ export function RootPage({ children, model }) {
     }
   };
 
-  const modelTopLeft = toEntry(toTopLeft(root));
+  const modelTopLeft = toTopLeftModel(root);
   const pageTopLeft = (
-    <TopLeftPage key={modelTopLeft.key} style={cell} update={update} model={modelTopLeft.value}>Top Left</TopLeftPage>
+    <TopLeftPage style={cell} update={update} model={modelTopLeft}>Top Left</TopLeftPage>
   );
 
-  const modelTopRight = toEntry(toTopRight(root));
+  const modelTopRight = toTopRightModel(root);
   const pageTopRight = (
-    <TopRightPage key={modelTopRight.key} style={cell} update={update} model={modelTopRight.value}>Top Right</TopRightPage>
+    <TopRightPage style={cell} update={update} model={modelTopRight}>Top Right</TopRightPage>
   );
 
-  const modelBottomLeft = toEntry(toBottomLeft(root));
+  const modelBottomLeft = toBottomLeftModel(root);
   const pageBottomLeft = (
-    <BottomLeftPage key={modelBottomLeft.key} style={cell} update={update} model={modelBottomLeft.value}>Bottom Left</BottomLeftPage>
+    <BottomLeftPage style={cell} update={update} model={modelBottomLeft}>Bottom Left</BottomLeftPage>
   );
 
-  const modelBottomRight = toEntry(toBottomRight(root));
+  const modelBottomRight = toBottomRightModel(root);
   const pageBottomRight = (
-    <BottomRightPage key={modelBottomRight.key} style={cell} update={update} model={modelBottomRight.value}>Bottom Right</BottomRightPage>
+    <BottomRightPage style={cell} update={update} model={modelBottomRight}>Bottom Right</BottomRightPage>
   );
 
   return (
